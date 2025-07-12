@@ -6789,24 +6789,48 @@ public:
 	void FNMS(spu_opcode_t op)
 	{
 		// See FMA.
-		if (g_cfg.core.spu_xfloat_accuracy == xfloat_accuracy::accurate)
+		if (g_cfg.core.spu_accurate_xfloat || g_cfg.core.spu_fnms_accuracy == spu_instruction_accuracy::accurate)
 		{
-			const auto [a, b, c] = get_vrs<f64[4]>(op.ra, op.rb, op.rc);
-			set_vr(op.rt4, fmuladd(-a, b, c));
+			set_vr(op.rt4, fmuladd(eval(-get_vr<f64[4]>(op.ra)), get_vr<f64[4]>(op.rb), get_vr<f64[4]>(op.rc)));
 			return;
 		}
-
-		register_intrinsic("spu_fnms", [&](llvm::CallInst* ci)
+		else if (g_cfg.core.spu_approx_xfloat || g_cfg.core.spu_fnms_accuracy == spu_instruction_accuracy::approximate)
 		{
-			const auto a = value<f32[4]>(ci->getOperand(0));
-			const auto b = value<f32[4]>(ci->getOperand(1));
-			const auto c = value<f32[4]>(ci->getOperand(2));
+			register_intrinsic("spu_fnms", [&](llvm::CallInst* ci)
+			{
+				const auto a = value<f32[4]>(ci->getOperand(0));
+				const auto b = value<f32[4]>(ci->getOperand(1));
+				const auto c = value<f32[4]>(ci->getOperand(2));
 
-			return fma32x4(eval(-clamp_smax(a)), clamp_smax(b), c);
-		});
+				const auto ma = eval(sext<s32[4]>(fcmp_uno(a != fsplat<f32[4]>(0.))));
+				const auto mb = eval(sext<s32[4]>(fcmp_uno(b != fsplat<f32[4]>(0.))));
+				const auto ca = eval(bitcast<f32[4]>(bitcast<s32[4]>(a) & mb));
+				const auto cb = eval(bitcast<f32[4]>(bitcast<s32[4]>(b) & ma));
 
-		set_vr(op.rt4, fnms(get_vr<f32[4]>(op.ra), get_vr<f32[4]>(op.rb), get_vr<f32[4]>(op.rc)));
-	}
+				return fma32x4(eval(-(ca)), (cb), c);
+			});
+
+			const auto a = get_vr<f32[4]>(op.ra);
+			const auto b = get_vr<f32[4]>(op.rb);
+			const auto ma = eval(sext<s32[4]>(fcmp_uno(a != fsplat<f32[4]>(0.))));
+			const auto mb = eval(sext<s32[4]>(fcmp_uno(b != fsplat<f32[4]>(0.))));
+			const auto ca = eval(bitcast<f32[4]>(bitcast<s32[4]>(a) & mb));
+			const auto cb = eval(bitcast<f32[4]>(bitcast<s32[4]>(b) & ma));
+			set_vr(op.rt4, fma32x4(eval(-(ca)), (cb), get_vr<f32[4]>(op.rc)));
+		}
+		else
+		{
+			register_intrinsic("spu_fnms", [&](llvm::CallInst* ci)
+			{
+				const auto a = value<f32[4]>(ci->getOperand(0));
+				const auto b = value<f32[4]>(ci->getOperand(1));
+				const auto c = value<f32[4]>(ci->getOperand(2));
+
+				return fma32x4(eval(-clamp_smax(a)), clamp_smax(b), c);
+			});
+
+			set_vr(op.rt4, fma32x4(eval(-get_vr<f32[4]>(op.ra)), get_vr<f32[4]>(op.rb), get_vr<f32[4]>(op.rc)));
+		}
 
 	template <typename T, typename U, typename V>
 	static llvm_calli<f32[4], T, U, V> fma(T&& a, U&& b, V&& c)
