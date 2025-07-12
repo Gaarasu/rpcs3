@@ -8528,7 +8528,7 @@ public:
 		return m_ir->CreatePtrToInt(func, get_type<u64>());
 	}
 
-	static decltype(&spu_llvm_recompiler::UNK) decode(u32 op);
+	static decltype(&UNK) decode(u32 op);
 };
 
 const spu_decoder<spu_llvm_recompiler> s_spu_llvm_decoder;
