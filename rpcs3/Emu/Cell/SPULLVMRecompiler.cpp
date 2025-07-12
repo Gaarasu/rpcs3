@@ -8531,16 +8531,16 @@ public:
 	static decltype(&spu_llvm_recompiler::UNK) decode(u32 op);
 };
 
-std::unique_ptr<spu_recompiler_base> spu_recompiler_base::make_llvm_recompiler(u8 magn)
-{
-	return std::make_unique<spu_llvm_recompiler>(magn);
-}
-
 const spu_decoder<spu_llvm_recompiler> s_spu_llvm_decoder;
 
 decltype(&spu_llvm_recompiler::UNK) spu_llvm_recompiler::decode(u32 op)
 {
 	return s_spu_llvm_decoder.decode(op);
+}
+
+std::unique_ptr<spu_recompiler_base> spu_recompiler_base::make_llvm_recompiler(u8 magn)
+{
+	return std::make_unique<spu_llvm_recompiler>(magn);
 }
 
 #else
